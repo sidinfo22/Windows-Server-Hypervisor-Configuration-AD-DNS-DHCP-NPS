@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Summit Care Windows Server 2022 Enterprise Domain Configuration</title>
+    <meta
+      name="description"
+      content="Master report for Summit Care Medical Clinic covering Windows Server 2022, AD DS, DNS, DHCP, NPS/RADIUS, AD Certificate Services, WDS, Group Policy, Proxmox, Hyper-V, Synology NAS, Microsoft Entra SSO, VDI, automation, backup, and monitoring."
+    />
+    <link rel="stylesheet" href="master-report.css" />
+  </head>
+  <body>
+    <main class="report-shell">
+      <section class="hero">
+        <span class="eyebrow">Master Report</span>
+        <h1>Summit Care Windows Server 2022 Enterprise Domain Configuration</h1>
+        <p class="subtitle">
+          This document explains how Summit Care Medical Clinic implemented a practical
+          Windows Server 2022 enterprise domain environment. The project covers Active
+          Directory Domain Services, DNS, DHCP, NPS/RADIUS, AD Certificate Services,
+          WDS, Group Policy, Windows Time, backup domain controllers, Synology NAS
+          storage, Proxmox, Hyper-V, VDI, Task Scheduler automation, Event Viewer,
+          SNMP monitoring, Microsoft Entra hybrid identity, and Microsoft 365 SSO.
+        </p>
+        <div class="title-meta">
+          <span class="title-chip">Windows Server 2022</span>
+          <span class="title-chip">AD DS / DNS / DHCP</span>
+          <span class="title-chip">NPS & AD CS</span>
+          <span class="title-chip">Proxmox / Hyper-V</span>
+          <span class="title-chip">M365 SSO</span>
+        </div>
+        <div class="title-signoff">
+          <article class="title-signoff-card">
+            <h3>Project Goal</h3>
+            <p>
+              Build a real enterprise domain control plane for identity, network
+              services, secure access, deployment, backup, monitoring, and remote
+              work in a healthcare clinic environment.
+            </p>
+          </article>
+          <article class="title-signoff-card">
+            <h3>Implementation Focus</h3>
+            <p>
+              Move beyond theory by documenting how each Windows Server feature was
+              implemented, validated, and tied to realistic Summit Care workflows.
+            </p>
+          </article>
+        </div>
+      </section>
+
+      <nav class="toc">
+        <span class="kicker">Contents</span>
+        <div class="toc-grid">
+          <a href="#overview">Overview & Platform Choice</a>
+          <a href="#domain">AD DS, DCs, DNS & Time</a>
+          <a href="#network">DHCP, WDS, NAS & Backups</a>
+          <a href="#security">GPO, NPS/RADIUS, Certificates & SSO</a>
+          <a href="#virtualization">Hypervisors, VDI & Automation</a>
+          <a href="#summary">Final Benefits</a>
+        </div>
+      </nav>
+
+      <section id="overview" class="section">
+        <span class="kicker">Overview</span>
+        <h2>Purpose And Platform Choice</h2>
+        <p class="lead">
+          Summit Care selected Windows Server 2022 because it is stable, widely
+          supported, and well suited for AD DS, DNS, DHCP, NPS, AD CS, WDS, Group
+          Policy, Windows Time, and Hyper-V. Windows Server 2025 may be useful later,
+          but 2022 reduces compatibility risk and avoids early-release bugs during a
+          healthcare infrastructure build.
+        </p>
+        <ul class="workflow-list">
+          <li>Centralize users, computers, groups, service accounts, and policies in Active Directory.</li>
+          <li>Provide reliable DNS and DHCP so clients can find domain services and internal tools.</li>
+          <li>Use GPOs to secure workstations, deploy certificates, map resources, and enforce baselines.</li>
+          <li>Secure office network access with NPS/RADIUS, 802.1X, WPA3-Enterprise, and AD CS.</li>
+          <li>Support remote work and testing with VDI, VPN, RDP, Hyper-V, and Proxmox virtual machines.</li>
+          <li>Build resilience through a backup domain controller, replication, Synology NAS backups, and scheduled automation.</li>
+        </ul>
+      </section>
+
+      <section id="domain" class="section">
+        <span class="kicker">Foundation</span>
+        <h2>Active Directory, Domain Controllers, DNS And Windows Time</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>System</th>
+              <th>Example Name</th>
+              <th>Role</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Primary domain controller</td>
+              <td>SC-DC01</td>
+              <td>Static IP, AD DS, DNS, DHCP, GPO management, and primary time hierarchy role.</td>
+            </tr>
+            <tr>
+              <td>Backup domain controller</td>
+              <td>SC-DC02</td>
+              <td>AD DS, DNS, global catalog, replication partner, and failover authentication.</td>
+            </tr>
+            <tr>
+              <td>NPS/RADIUS server</td>
+              <td>SC-NPS01</td>
+              <td>802.1X, WPA3-Enterprise, user/device network authentication, and RADIUS logs.</td>
+            </tr>
+            <tr>
+              <td>Certificate authority</td>
+              <td>SC-CA01</td>
+              <td>Enterprise CA for computer certificates, NPS certificates, and auto-enrollment.</td>
+            </tr>
+            <tr>
+              <td>Deployment server</td>
+              <td>SC-WDS01</td>
+              <td>PXE boot, Windows images, and standardized workstation deployment.</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <h3>Domain Controller Implementation</h3>
+        <ol class="workflow-list">
+          <li>Assign static IP addresses to SC-DC01 and SC-DC02 and exclude all server IPs from DHCP scopes.</li>
+          <li>Install AD DS and DNS on SC-DC01, create the Summit Care domain, and organize OUs for users, workstations, servers, VDI, service accounts, and groups.</li>
+          <li>Join SC-DC02 to the domain, promote it as a secondary domain controller, install DNS, and validate SYSVOL and NETLOGON.</li>
+          <li>Run dcdiag and repadmin /replsummary to confirm domain health and replication.</li>
+          <li>Configure DHCP option 006 so clients receive both domain controllers as DNS servers.</li>
+          <li>Verify Windows Time with w32tm because Kerberos, certificates, logs, and NPS authentication depend on accurate time.</li>
+        </ol>
+
+        <h3>DNS Records For Internal Services</h3>
+        <table>
+          <thead>
+            <tr>
+              <th>Record</th>
+              <th>Purpose</th>
+              <th>Benefit</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>dc01 / dc02</td>
+              <td>Domain controller and DNS discovery.</td>
+              <td>Clients locate authentication and Group Policy services reliably.</td>
+            </tr>
+            <tr>
+              <td>sql.summitcare.local</td>
+              <td>Database or clinical tool backend.</td>
+              <td>Applications use a stable name instead of a changing IP.</td>
+            </tr>
+            <tr>
+              <td>intranet.summitcare.local</td>
+              <td>Internal web server or documentation portal.</td>
+              <td>Staff and IT reach internal tools by friendly DNS name.</td>
+            </tr>
+            <tr>
+              <td>nas.summitcare.local</td>
+              <td>Synology backup and shared storage.</td>
+              <td>Scripts and users can target protected storage consistently.</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section id="network" class="section">
+        <span class="kicker">Services</span>
+        <h2>DHCP, WDS, Synology NAS And Backup Strategy</h2>
+        <p class="lead">
+          DHCP provides office clients, VDI systems, printers, phones, and test
+          machines with managed addressing. Critical systems use static addresses or
+          reservations so domain services, NAS storage, RADIUS, WDS, and database
+          tools remain predictable.
+        </p>
+        <table>
+          <thead>
+            <tr>
+              <th>Service</th>
+              <th>Configuration</th>
+              <th>Why It Matters</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>DHCP scope</td>
+              <td>Client pool, exclusions, reservations, option 003 router, option 006 DNS, option 015 suffix.</td>
+              <td>Fast onboarding and fewer manual IP mistakes.</td>
+            </tr>
+            <tr>
+              <td>DHCP failover</td>
+              <td>Windows DHCP failover or documented emergency edge DHCP with non-overlapping pools.</td>
+              <td>Clients can still receive leases during service failure or maintenance.</td>
+            </tr>
+            <tr>
+              <td>WDS</td>
+              <td>PXE boot, boot images, install images, and pilot deployment to a virtual desktop first.</td>
+              <td>Standardizes workstation rebuilds and reduces manual install time.</td>
+            </tr>
+            <tr>
+              <td>Synology NAS</td>
+              <td>Domain joined, permissioned with AD groups, used for backups and retained exports.</td>
+              <td>Keeps recovery data separate from the production server disks.</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <h3>Backup Targets</h3>
+        <ul class="workflow-list">
+          <li>System state backups for domain controllers.</li>
+          <li>GPMC exports for Group Policy Objects.</li>
+          <li>DHCP configuration and lease exports.</li>
+          <li>AD CS database, private key, certificate templates, and CA configuration backups.</li>
+          <li>PowerShell scripts, Task Scheduler XML exports, and operational documentation.</li>
+          <li>Hypervisor VM backups or exports for domain services, VDI, and test machines.</li>
+        </ul>
+      </section>
+
+      <section id="security" class="section">
+        <span class="kicker">Security</span>
+        <h2>Group Policy, NPS/RADIUS, Certificates And Entra SSO</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>Control</th>
+              <th>Summit Care Implementation</th>
+              <th>Security Value</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Group Policy</td>
+              <td>Password rules, lockout policy, workstation firewall, mapped drives, RDP control, certificate auto-enrollment, and Wi-Fi profiles.</td>
+              <td>Repeatable security and configuration across domain devices.</td>
+            </tr>
+            <tr>
+              <td>NPS/RADIUS</td>
+              <td>RADIUS policies for wireless access points, switches, user groups, computer groups, and approved authentication methods.</td>
+              <td>Network access is tied to real identity instead of a shared password.</td>
+            </tr>
+            <tr>
+              <td>802.1X / WPA3-Enterprise</td>
+              <td>Domain users and computers authenticate to the internal office network through NPS.</td>
+              <td>Lost or disabled accounts can be blocked without changing an office-wide Wi-Fi key.</td>
+            </tr>
+            <tr>
+              <td>AD Certificate Services</td>
+              <td>Enterprise CA, computer certificate templates, NPS server certificate, auto-enrollment GPO, CRL/AIA planning.</td>
+              <td>Trusted domain computers can receive certificate-based access automatically.</td>
+            </tr>
+            <tr>
+              <td>Microsoft Entra SSO</td>
+              <td>Verified public domain, UPN suffix setup in Active Directory Domains and Trusts, Entra sync, MFA, and Microsoft 365 app sign-in.</td>
+              <td>Users sign into M365 apps with a clean business identity such as user@summitcare.org.</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div class="callout">
+          A real GPO scenario: domain computers receive certificates through
+          auto-enrollment, receive the secure office Wi-Fi profile through Group
+          Policy, validate the NPS server certificate, and connect through
+          WPA3-Enterprise / 802.1X without using a shared Wi-Fi password.
+        </div>
+      </section>
+
+      <section id="virtualization" class="section">
+        <span class="kicker">Operations</span>
+        <h2>Proxmox, Hyper-V, VDI, Automation And Monitoring</h2>
+        <p class="lead">
+          A type 1 hypervisor lets Summit Care use one physical server for multiple
+          roles: domain controllers, NPS, CA, WDS, virtual office desktops, remote
+          work VDI, and sandbox testing. Proxmox hosts the core virtual machines,
+          while Windows Hyper-V and nested virtualization can be used for Microsoft
+          lab testing where supported.
+        </p>
+        <table>
+          <thead>
+            <tr>
+              <th>Operational Area</th>
+              <th>Implementation</th>
+              <th>Benefit</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>VDI / remote work</td>
+              <td>Remote staff VPN into the network, then RDP into assigned virtual office desktops.</td>
+              <td>Internal applications stay inside the controlled clinic environment.</td>
+            </tr>
+            <tr>
+              <td>Sandbox testing</td>
+              <td>Virtual desktop clients receive GPOs, certificates, DNS, DHCP, and app access before production rollout.</td>
+              <td>Changes can be validated before touching physical clinic workstations.</td>
+            </tr>
+            <tr>
+              <td>Task Scheduler</td>
+              <td>Scheduled scripts export DHCP, backup GPOs, run dcdiag/repadmin, copy outputs to NAS, and export logs.</td>
+              <td>Routine maintenance becomes repeatable and documented.</td>
+            </tr>
+            <tr>
+              <td>Event Viewer</td>
+              <td>Review Directory Service, DNS, DHCP, NPS, certificate enrollment, security, and system logs.</td>
+              <td>Faster troubleshooting and better audit evidence.</td>
+            </tr>
+            <tr>
+              <td>SNMP monitoring</td>
+              <td>Monitor switches, APs, NAS, UPS, hypervisor host, and other infrastructure devices.</td>
+              <td>Visibility into uptime, efficiency, and device health.</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section id="summary" class="section">
+        <span class="kicker">Summary</span>
+        <h2>Final Benefits</h2>
+        <p class="lead">
+          The completed Summit Care Windows Server 2022 implementation turns the
+          clinic server environment into a full enterprise platform. Active Directory
+          centralizes identity. DNS makes internal tools discoverable. DHCP gives
+          clients reliable addressing. A backup domain controller protects logon and
+          name resolution. Group Policy secures workstations at scale. NPS/RADIUS
+          and AD CS enable enterprise network authentication and certificates. WDS
+          standardizes desktop deployment. Synology NAS supports the backup strategy.
+          Proxmox, Hyper-V, and VDI make the hardware flexible for testing and remote
+          work. Task Scheduler, Event Viewer, SNMP, and health checks improve daily
+          operations. Microsoft Entra hybrid identity and UPN alignment connect the
+          local domain to Microsoft 365 SSO. The result is a healthcare network that
+          is easier to manage, easier to recover, and far more secure than unmanaged
+          workgroup computers or shared-password network access.
+        </p>
+      </section>
+    </main>
+  </body>
+</html>
